@@ -15,6 +15,10 @@ tf.app.flags.DEFINE_string("checkpoint_dir", "save", "checkpoint directory")
 tf.app.flags.DEFINE_string("model_name", "angularSR.model", "model name for checkpoint")
 tf.app.flags.DEFINE_string("img_file", "../img.mat", "dataset for input image")
 tf.app.flags.DEFINE_string("gt_file", "../gt_a.mat", "ground truth for angular SR")
+tf.app.flags.DEFINE_string("img_val_file", "../img_val.mat", "validation dataset for input image")
+tf.app.flags.DEFINE_string("gt_val_file", "../gt_a_val.mat", "validation ground truth for angular SR")
+tf.app.flags.DEFINE_string("img_test_file", "../img_test.mat", "test dataset for input image")
+tf.app.flags.DEFINE_string("gt_test_file", "../gt_a_test.mat", "test ground truth for angular SR")
 
 
 def main(unused_argv):
