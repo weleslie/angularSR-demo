@@ -141,6 +141,41 @@ class AngularSR(object):
         with h5py.File("loss.h5", 'w') as hf:
             hf.create_dataset("loss", data=Loss)
 
+    def test(self):
+        # load checkpoint
+        if self.load():
+            print("[* Load Successfully]")
+        else:
+            print("[* Load failed]")
+
+        # read validation dataset
+        data = h5py.File(FLAGS.img_test_file, 'r')
+        img_test = data["data"][()]
+
+        data_gt = h5py.File(FLAGS.gt_test_file, 'r')
+        gt_test = data_gt["gt_a"][()]
+
+        img_test = np.transpose(img_test, (0, 3, 2, 1))
+        gt_test = np.transpose(gt_test, (0, 3, 2, 1))
+
+        N = img_test.shape[0]
+        batch_number = N // self.batch_size
+
+        Loss = []
+        for i in range(batch_number):
+            start = i * self.batch_size
+            end = (i + 1) * self.batch_size
+            batch_img = img_test[start:end, :, :, :]
+            batch_gt = gt_test[start:end, :, :, :]
+
+            feed_dict = {self.input: batch_img, self.label: batch_gt}
+
+            loss = self.sess.run(self.loss, feed_dict=feed_dict)
+
+            Loss.append(loss)
+
+        print("Loss: %.8f" % np.mean(Loss).squeeze())
+
     def load(self):
         ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
 
