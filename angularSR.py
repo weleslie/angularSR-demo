@@ -10,14 +10,15 @@ tf.compat.v1.disable_eager_execution()
 
 
 class AngularSR(object):
-    def __init__(self):
+    def __init__(self, sess):
         self.batch_size = FLAGS.batch_size
         self.learning_rate1 = FLAGS.learning_rate1
         self.learning_rate2 = FLAGS.learning_rate2
-        self.epochs = FLAGS.epochs
+        self.epochs = FLAGS.epochs_a
         self.width = FLAGS.patch_width
         self.height = FLAGS.patch_height
         self.channel = FLAGS.input_c
+        self.sess = sess
 
         self._init_graph()
 
@@ -29,8 +30,6 @@ class AngularSR(object):
         self.pred = self.angularSR()
 
         self.loss = tf.compat.v1.losses.mean_squared_error(self.label, self.pred)
-
-        self.sess = tf.compat.v1.Session()
 
         # load partial parameters
         self.variable = [var for var in tf.compat.v1.trainable_variables() if "angular_SR" in var.name]
@@ -55,6 +54,11 @@ class AngularSR(object):
         return output
 
     def train(self):
+        if self.load():
+            print("[* Load Successfully]")
+        else:
+            print("[* Load failed]")
+
         # setting learning rate hierarchically
         var1 = tf.compat.v1.trainable_variables()[0:4]
         var2 = tf.compat.v1.trainable_variables()[4:]
@@ -67,12 +71,6 @@ class AngularSR(object):
         train_op = tf.compat.v1.group(train_op1, train_op2)
 
         self.sess.run(tf.compat.v1.global_variables_initializer())
-
-        # load checkpoint
-        if self.load():
-            print("[* Load Successfully]")
-        else:
-            print("[* Load failed]")
 
         # read training dataset
         data = h5py.File(FLAGS.img_file, 'r')
@@ -143,12 +141,6 @@ class AngularSR(object):
             hf.create_dataset("loss", data=Loss)
 
     def test(self):
-        # load checkpoint
-        if self.load():
-            print("[* Load Successfully]")
-        else:
-            print("[* Load failed]")
-
         # read validation dataset
         data = h5py.File(FLAGS.img_test_file, 'r')
         img_test = data["data"][()]
@@ -177,19 +169,25 @@ class AngularSR(object):
 
         print("Loss: %.8f" % np.mean(Loss).squeeze())
 
+    def inputSpatial(self, batch_img):
+        feed_dict = {self.input: batch_img}
+        output = self.sess.run(self.pred, feed_dict=feed_dict)
+
+        return output
+
     def load(self):
-        ckpt = tf.compat.v1.train.get_checkpoint_state(FLAGS.checkpoint_dir)
+        ckpt = tf.compat.v1.train.get_checkpoint_state(FLAGS.checkpoint_a_dir)
 
         if ckpt and ckpt.model_checkpoint_path:
             ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
-            self.saver_load.restore(self.sess, os.path.join(FLAGS.checkpoint_dir, ckpt_name))
+            self.saver_load.restore(self.sess, os.path.join(FLAGS.checkpoint_a_dir, ckpt_name))
 
             return True
         else:
             return False
 
     def save(self, step):
-        if not os.path.exists(FLAGS.save_dir):
-            os.makedirs(FLAGS.save_dir)
+        if not os.path.exists(FLAGS.save_a_dir):
+            os.makedirs(FLAGS.save_a_dir)
 
-        self.saver_save.save(self.sess, os.path.join(FLAGS.save_dir, FLAGS.model_name), global_step=step)
+        self.saver_save.save(self.sess, os.path.join(FLAGS.save_a_dir, FLAGS.model_a_name), global_step=step)
