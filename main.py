@@ -7,6 +7,7 @@ import time
 import os
 
 FLAGS = tf.compat.v1.flags.FLAGS
+tf.compat.v1.flags.DEFINE_integer("sort", 2, "different functions of main")
 tf.compat.v1.flags.DEFINE_integer("scale", 2, "scale factor in spatial SR")
 tf.compat.v1.flags.DEFINE_integer("batch_size", 128, "batch size")
 tf.compat.v1.flags.DEFINE_integer("patch_width", 20, "width of sub-images")
@@ -78,6 +79,74 @@ def trainAngular():
     else:
         print("Start testing!")
         angular_sr.test()
+
+
+def testBoth():
+    sess = tf.compat.v1.Session()
+    # initial angularSR net
+    angular_sr = AngularSR(sess)
+    spatial_sr = PASSRnet(sess)
+
+    image_l = tf.compat.v1.placeholder(tf.float32, shape=[None, FLAGS.patch_width, FLAGS.patch_height, 1],
+                                       name='left_image')
+    image_r = tf.compat.v1.placeholder(tf.float32, shape=[None, FLAGS.patch_width, FLAGS.patch_height, 1],
+                                       name='right_image')
+
+    pred_s = spatial_sr.outputPred(image_l, image_r)
+    label_s = tf.compat.v1.placeholder(tf.float32, shape=[None, FLAGS.patch_width * 2, FLAGS.patch_height * 2, 1],
+                                       name='label_of_spatialSR')
+    loss = tf.compat.v1.losses.mean_squared_error(pred_s, label_s)
+
+    # get different variables for two networks
+    variable_a = [var for var in tf.compat.v1.trainable_variables() if "angular_SR" in var.name]
+    variable_s = [var for var in tf.compat.v1.trainable_variables() if "PASSRnet" in var.name]
+
+    # load data
+    saver_a = tf.compat.v1.train.Saver(variable_a)
+    if load_a(sess, saver_a):
+        print("[* Load angularSR Successfully]")
+    else:
+        print("[* Load angularSR failed]")
+
+    saver_s = tf.compat.v1.train.Saver(variable_s)
+    if load_s(sess, saver_s):
+        print("[* Load spatialSR Successfully]")
+    else:
+        print("[* Load spatialSR failed]")
+
+    sess.run(tf.compat.v1.global_variables_initializer())
+
+    # read test dataset
+    data = h5py.File(FLAGS.img_test_file, 'r')
+    img_test = data["data"][()]
+
+    data_gt = h5py.File(FLAGS.gts_test_file, 'r')
+    gts_test = data_gt["gt_s"][()]
+
+    N_test = img_test.shape[0]
+    img_test = np.transpose(img_test, (0, 3, 2, 1))
+    test_l = img_test[:, :, :, 0]
+    size = test_l.shape
+    test_l = np.reshape(test_l, (size[0], size[1], size[2], 1))
+    gts_test = np.transpose(gts_test, (0, 3, 2, 1))
+
+    test_batch_number = N_test // FLAGS.batch_size
+
+    test_temp_error = []
+    for k in range(test_batch_number):
+        start = k * FLAGS.batch_size
+        end = (k + 1) * FLAGS.batch_size
+        batch_img = img_test[start:end, :, :, :]
+        batch_input_l = test_l[start:end, :, :, :]
+        batch_gt = gts_test[start:end, :, :, :]
+
+        batch_input_r = angular_sr.inputSpatial(batch_img)
+        feed_dict = {image_l: batch_input_l, image_r: batch_input_r, label_s: batch_gt}
+        ls = sess.run(loss, feed_dict=feed_dict)
+
+        test_temp_error.append(ls)
+
+    print("Loss: %.4f" % np.mean(test_temp_error).squeeze())
 
 
 def trainBoth():
@@ -205,7 +274,10 @@ def trainBoth():
 
 
 def main(unused_argv):
-    trainBoth()
+    if FLAGS.sort == 1:
+        trainBoth()
+    elif FLAGS.sort == 2:
+        testBoth()
 
 
 if __name__ == '__main__':
