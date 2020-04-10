@@ -16,7 +16,7 @@ tf.compat.v1.flags.DEFINE_float("learning_rate1", 1e-4, "learning rate for the f
 tf.compat.v1.flags.DEFINE_float("learning_rate2", 1e-5, "learning rate for the last layers")
 tf.compat.v1.flags.DEFINE_float("learning_rate_s", 2e-4, "learning rate for spatialSR net")
 tf.compat.v1.flags.DEFINE_integer("epochs_a", 100, "training epochs for angularSR")
-tf.compat.v1.flags.DEFINE_integer("epochs_s", 100, "training epochs for spatialSR")
+tf.compat.v1.flags.DEFINE_integer("epochs_s", 80, "training epochs for spatialSR")
 tf.compat.v1.flags.DEFINE_boolean("is_train", True, "is training or not")
 tf.compat.v1.flags.DEFINE_string("checkpoint_dir", "save_sum", "checkpoint directory for both")
 tf.compat.v1.flags.DEFINE_string("save_dir", "save_sum", "save directory for both")
@@ -100,11 +100,6 @@ def trainBoth():
     variable_a = [var for var in tf.compat.v1.trainable_variables() if "angular_SR" in var.name]
     variable_s = [var for var in tf.compat.v1.trainable_variables() if "PASSRnet" in var.name]
 
-    # train spatialSR net only
-    train_op = tf.compat.v1.train.AdamOptimizer(learning_rate=FLAGS.learning_rate_s).minimize(loss,
-                                                                                              var_list=variable_s)
-    sess.run(tf.compat.v1.global_variables_initializer())
-
     # load data
     saver_a = tf.compat.v1.train.Saver(variable_a)
     if load_a(sess, saver_a):
@@ -139,6 +134,16 @@ def trainBoth():
     gts = np.transpose(gts, (0, 3, 2, 1))
 
     batch_number = N // FLAGS.batch_size
+
+    # train spatialSR net only
+    # learning rate decay constantly
+    gs = tf.compat.v1.Variable(0, trainable=False)
+    boundaries = [30 * batch_number, 60 * batch_number]
+    values = [2e-4, 1e-4, 5e-5]
+    learning_rate = tf.compat.v1.train.piecewise_constant(gs, boundaries, values)
+    train_op = tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss, var_list=variable_s,
+                                                                                      global_step=gs)
+    sess.run(tf.compat.v1.global_variables_initializer())
 
     # read validation dataset
     data = h5py.File(FLAGS.img_val_file, 'r')
@@ -191,8 +196,9 @@ def trainBoth():
 
             valid_temp_error.append(ls)
 
-        print("Epochs: %d, Loss: %.8f, valid Loss: %.8f, Time: %.4f"
-              % (i + 1, Loss[-1], np.mean(valid_temp_error).squeeze(), time.time() - start_time))
+        lr = learning_rate.eval(session=sess)
+        print("Epochs: %d, Loss: %.8f, valid Loss: %.8f, Time: %.4f, Learning rate: %.5f"
+              % (i + 1, Loss[-1], np.mean(valid_temp_error).squeeze(), time.time() - start_time, lr))
 
     with h5py.File("spatial_loss.h5", 'w') as hf:
         hf.create_dataset("loss", data=Loss)
