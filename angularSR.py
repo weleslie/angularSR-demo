@@ -169,11 +169,11 @@ class AngularSR(object):
 
         print("Loss: %.8f" % np.mean(Loss).squeeze())
 
-    def inputSpatial(self, batch_img):
-        feed_dict = {self.input: batch_img}
-        output = self.sess.run(self.pred, feed_dict=feed_dict)
+    def inputSpatial(self, batch_img, batch_gta):
+        feed_dict = {self.input: batch_img, self.label: batch_gta}
+        loss, output = self.sess.run([self.loss, self.pred], feed_dict=feed_dict)
 
-        return output
+        return loss, output
 
     def load(self):
         ckpt = tf.compat.v1.train.get_checkpoint_state(FLAGS.checkpoint_a_dir)
