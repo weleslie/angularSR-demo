@@ -139,23 +139,6 @@ def trainSpatial():
             hf.create_dataset("loss", data=Loss)
 
     else:
-        sess = tf.compat.v1.Session()
-        # initial spatialSR net
-        spatial_sr = PASSRnet(sess)
-
-        image_l = tf.compat.v1.placeholder(tf.float32, shape=[None, FLAGS.patch_width, FLAGS.patch_height, 1],
-                                           name='left_image')
-        image_r = tf.compat.v1.placeholder(tf.float32, shape=[None, FLAGS.patch_width, FLAGS.patch_height, 1],
-                                           name='right_image')
-
-        pred_s = spatial_sr.outputPred(image_l, image_r)
-        label_s = tf.compat.v1.placeholder(tf.float32, shape=[None, FLAGS.patch_width * 2, FLAGS.patch_height * 2, 1],
-                                           name='label_of_spatialSR')
-        loss = tf.compat.v1.losses.mean_squared_error(pred_s, label_s)
-
-        # get variables for spatialSR networks
-        variable_s = [var for var in tf.compat.v1.trainable_variables() if "PASSRnet" in var.name]
-
         sess.run(tf.compat.v1.global_variables_initializer())
 
         # load data
